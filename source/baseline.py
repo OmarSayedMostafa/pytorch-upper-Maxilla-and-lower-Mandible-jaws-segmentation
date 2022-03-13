@@ -37,9 +37,9 @@ def main(args):
     # Create directory to store run files
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path + '/images')
-    if not os.path.isdir(args.save_path + '/val'):
-        os.makedirs(args.save_path + '/val')
-        os.makedirs(args.save_path + '/test')
+    if not os.path.isdir(args.save_path + '/images/val'):
+        os.makedirs(args.save_path + '/images/val')
+        os.makedirs(args.save_path + '/images/test')
     
     Dataset = JawsDataset
 
@@ -80,13 +80,14 @@ def main(args):
         model.load_state_dict(checkpoint['model_state_dict'], strict=True)
         print('Loaded model weights from {}'.format(args.save_path + '/best_weights.pth.tar'))
         # Create results directory
-        if not os.path.isdir(args.save_path + '/results_val'):
-            os.makedirs(args.save_path + '/results_val')
-        if not os.path.isdir(args.save_path + '/results_test'):
-            os.makedirs(args.save_path + '/results_test')
+        if not os.path.isdir(args.save_path + '/images/val'):
+            os.makedirs(args.save_path + '/images/val')
+        if not os.path.isdir(args.save_path + '/images/test'):
+            os.makedirs(args.save_path + '/images/test')
 
-        predict(dataloaders['test'], model, Dataset.mask_colors, folder=args.save_path, mode='test', args=args)
-        predict(dataloaders['val'], model, Dataset.mask_colors, folder=args.save_path, mode='val', args=args)
+        val_acc, val_loss, miou = validate_epoch(dataloaders['test'], model, criterion, 0,
+                                                 Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass,
+                                                 maskColors=Dataset.mask_colors, folder=args.save_path, args=args, mode='test')
         return
     
     # Generate log file
@@ -98,16 +99,16 @@ def main(args):
     for epoch in range(start_epoch, args.epochs):
         # Train
         print('--- Training ---')
-        # train_loss, train_acc = train_epoch(dataloaders['train'], model, criterion, optimizer, scheduler, epoch, void=Dataset.voidClass, args=args)
-        # metrics['train_loss'].append(train_loss)
-        # metrics['train_acc'].append(train_acc)
-        # print('Epoch {} train loss: {:.4f}, acc: {:.4f}'.format(epoch,train_loss,train_acc))
+        train_loss, train_acc = train_epoch(dataloaders['train'], model, criterion, optimizer, scheduler, epoch, void=Dataset.voidClass, args=args)
+        metrics['train_loss'].append(train_loss)
+        metrics['train_acc'].append(train_acc)
+        print('Epoch {} train loss: {:.4f}, acc: {:.4f}'.format(epoch,train_loss,train_acc))
         
         # Validate
         print('--- Validation ---')
         val_acc, val_loss, miou = validate_epoch(dataloaders['val'], model, criterion, epoch,
                                                  Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass,
-                                                 maskColors=Dataset.mask_colors, folder=args.save_path, args=args)
+                                                 maskColors=Dataset.mask_colors, folder=args.save_path, args=args, mode='val')
         metrics['val_acc'].append(val_acc)
         metrics['val_loss'].append(val_loss)
         ['miou'].append(miou)
@@ -139,7 +140,7 @@ def main(args):
     print('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
     
-    plot_learning_curves(metrics, args)
+    # plot_learning_curves(metrics, args)
 
     # Load best model
     checkpoint = torch.load(args.save_path + '/best_weights.pth.tar')
@@ -147,14 +148,16 @@ def main(args):
     print('Loaded best model weights (epoch {}) from {}/best_weights.pth.tar'.format(checkpoint['epoch'], args.save_path))
     
     # Create results directory
-    if not os.path.isdir(args.save_path + '/results_val'):
-        os.makedirs(args.save_path + '/results_val')
+    if not os.path.isdir(args.save_path + '/images/val'):
+        os.makedirs(args.save_path + '/images/val')
 
-    if not os.path.isdir(args.save_path + '/results_test'):
-        os.makedirs(args.save_path + '/results_test')
+    if not os.path.isdir(args.save_path + '/images/test'):
+        os.makedirs(args.save_path + '/images/test')
 
     # Run prediction on validation set. For predicting on test set, simple replace 'val' by 'test'
-    predict(dataloaders['val'], model, Dataset.mask_colors, folder=args.save_path, mode='val', args=args)
+    val_acc, val_loss, miou = validate_epoch(dataloaders['test'], model, criterion, 0,
+                                                 Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass,
+                                                 maskColors=Dataset.mask_colors, folder=args.save_path, args=args, mode='test')
 
     
 if __name__ == '__main__':

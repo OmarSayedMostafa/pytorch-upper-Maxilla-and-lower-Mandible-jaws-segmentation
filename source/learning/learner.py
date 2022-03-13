@@ -74,7 +74,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
     return loss_running.avg, acc_running.avg
 
     
-def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasses, void=-1, maskColors=None, folder='baseline_run', args=None):
+def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasses, void=-1, maskColors=None, folder='baseline_run', args=None, mode='val'):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
@@ -83,7 +83,7 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
     progress = ProgressMeter(
         len(dataloader),
         [batch_time, data_time, loss_running, acc_running],
-        prefix="Test, epoch: [{}]".format(epoch))
+        prefix=mode+", epoch: [{}]".format(epoch))
     
     # input resolution
     res = args.test_size[0]*args.test_size[1]
@@ -116,21 +116,21 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
             iou.evaluateBatch(preds, labels)
             
             # Save visualizations of first batch
-            if epoch_step == 0 and maskColors is not None:
+            if args.save_val_imgs and maskColors is not None:
                 for i in range(inputs.size(0)):
-                    filename = epoch_step+(i*epoch_step)
+                    filename = (epoch_step*inputs.size(0))+i
                     # Only save inputs and labels once
                     if epoch == 0:
                         img = visim(inputs[i,:,:,:], args)
                         label = vislbl(labels[i,:,:], maskColors)
                         if len(img.shape) == 3:
-                            cv2.imwrite(folder + '/images/{}.png'.format(filename),img[:,:,::-1])
+                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode, filename),img[:,:,::-1])
                         else: 
-                            cv2.imwrite(folder + '/images/{}.png'.format(filename),img)
-                        cv2.imwrite(folder + '/images/{}_gt.png'.format(filename),label[:,:,::-1])
+                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode,filename),img)
+                        cv2.imwrite(folder + '/images/{}/{}_gt.png'.format(mode,filename),label[:,:,::-1])
                     # Save predictions
                     pred = vislbl(preds[i,:,:], maskColors)
-                    cv2.imwrite(folder + '/images/{}_epoch_{}.png'.format(filename,epoch),pred[:,:,::-1])
+                    cv2.imwrite(folder + '/images/{}/{}_epoch_{}.png'.format(mode,filename,epoch),pred[:,:,::-1])
 
             # measure elapsed time
             batch_time.update(time.time() - end)
