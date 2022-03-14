@@ -130,7 +130,7 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
                         cv2.imwrite(folder + '/images/{}/{}_gt.png'.format(mode,filename),label[:,:,::-1])
                     # Save predictions
                     pred = vislbl(preds[i,:,:], maskColors)
-                    cv2.imwrite(folder + '/images/{}/{}_epoch_{}.png'.format(mode,filename,epoch),pred[:,:,::-1])
+                    cv2.imwrite(folder + '/images/{}/{}_last_preds.png'.format(mode,filename),pred[:,:,::-1])
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -139,7 +139,7 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
             # print progress info
             progress.display(epoch_step)
         
-        miou = iou.outputScores()
+        miou = iou.outputScores(mode, args)
         print('Accuracy      : {:5.3f}'.format(acc_running.avg))
         print('---------------------')
 

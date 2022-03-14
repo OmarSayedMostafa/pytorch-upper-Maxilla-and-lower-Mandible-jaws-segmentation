@@ -35,6 +35,7 @@ def main(args):
                       'You may see unexpected behavior when restarting from checkpoints.')
     
     # Create directory to store run files
+    args.save_path = os.path.join(args.save_path, args.experiment_name)
     if not os.path.isdir(args.save_path):
         os.makedirs(args.save_path + '/images')
     if not os.path.isdir(args.save_path + '/images/val'):

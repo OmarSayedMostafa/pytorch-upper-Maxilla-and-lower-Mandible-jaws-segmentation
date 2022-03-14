@@ -155,7 +155,7 @@ class iouCalc():
             
         return
             
-    def outputScores(self):
+    def outputScores(self, mode="val", args=None):
         # Output scores over dataset
         assert self.confMatrix.sum() == self.nbPixels, 'Number of analyzed pixels and entries in confusion matrix disagree: confMatrix {}, pixels {}'.format(self.confMatrix.sum(),self.nbPixels)
     
@@ -175,6 +175,9 @@ class iouCalc():
         outStr += '---------------------'
         
         print(outStr)
+        if mode =='test':
+            with open(args.save_path + '/test_result.txt', 'w') as f:
+                f.write(outStr)
         
         return miou
         
@@ -241,11 +244,11 @@ def plot_learning_curves(metrics, args):
     ax1.grid()
     ax2 = ax1.twinx()
     ax2.set_ylabel('accuracy')
-    ln3 = ax2.plot(x, metrics['train_acc'], color='tab:blue')
-    ln4 = ax2.plot(x, metrics['val_acc'], color='tab:blue', linestyle='dashed')
+    # ln3 = ax2.plot(x, metrics['train_acc'], color='tab:blue')
+    # ln4 = ax2.plot(x, metrics['val_acc'], color='tab:blue', linestyle='dashed')
     ln5 = ax2.plot(x, metrics['miou'], color='tab:green')
-    lns = ln1+ln2+ln3+ln4+ln5
-    plt.legend(lns, ['Train loss','Validation loss','Train accuracy','Validation accuracy','mIoU'])
+    lns = ln1+ln2+ln5
+    plt.legend(lns, ['Train loss','Validation loss','mIoU'])
     plt.tight_layout()
     plt.savefig(args.save_path + '/learning_curve.png', bbox_inches='tight')
 

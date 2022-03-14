@@ -4,9 +4,9 @@
         "save_path": "./baseline_run",
         "weights": null,
         "norm": "batch",
-        "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/sagittal",
+        "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/axial",
         "lbl_channels":3,
-        "save_val_imgs":true,
+        "save_val_imgs":false,
         
         "pin_memory": true,
         "num_workers": 16,
@@ -15,7 +15,7 @@
         "normalize":false,
         "rotate":true,
         "scale":true,
-        "validation_ratio":0.1,
+        "validation_ratio":0.2,
         "train_size": [
             128,
             128
@@ -27,21 +27,41 @@
         "dataset_mean": 0.0,
         "dataset_std": 1.0,
         
-        "batch_size": 256,
+        "batch_size": 100000,
+        
         "lr_init": 0.01,
         "lr_momentum": 0.9,
         "lr_weight_decay": 0.0001,
         "epochs": 1,
-        "seed": null,
+        "seed": true,
+        "random_seed":40,
         "loss": "ce",
         "focal_gamma": 2.0,
         "predict": false
     },
     "eperiments":[
         {
-            "name":"first_experiment",
-            "batch_size": 256,
-            "epochs":1
+            "experiment_name":"sagittal_experiment",
+            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/sagittal",
+            "batch_size": 128,
+            "epochs":5,
+            "save_val_imgs":false
+
+        },
+        {
+            "experiment_name":"coronal_experiment",
+            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/coronal",
+            "batch_size": 128,
+            "epochs":5,
+            "save_val_imgs":false
+
+        },
+        {
+            "experiment_name":"axial_experiment",
+            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/axial",
+            "batch_size": 128,
+            "epochs":5,
+            "save_val_imgs":false
 
         }
 

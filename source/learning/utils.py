@@ -87,7 +87,7 @@ def merge_lists(dict_of_lists):
         merged_list+=dict_of_lists[key]
     return merged_list
 
-def get_dataloader(dataset, args):
+def get_dataloader(dataset, args, as_one_batch=False):
 
     def test_trans(image, mask=None):
         # Resize, 1 for Image.LANCZOS
@@ -162,6 +162,8 @@ def get_dataloader(dataset, args):
             
         return image, mask
 
+    if as_one_batch:
+        args.validation_ratio=0
 
     train_data = {
         case: glob.glob(os.path.join(args.dataset_path, "train", case,"*.dicom.npy.gz"))
@@ -186,6 +188,10 @@ def get_dataloader(dataset, args):
     trainset = dataset(train_data, transforms=train_trans)
     valset = dataset(validation_data, transforms=test_trans)
     testset = dataset(test_data, transforms=test_trans)
+
+    if as_one_batch:
+        args.batch_size = len(trainset)
+        
     dataloaders = {}    
     dataloaders['train'] = torch.utils.data.DataLoader(trainset,
                batch_size=args.batch_size, shuffle=True,
