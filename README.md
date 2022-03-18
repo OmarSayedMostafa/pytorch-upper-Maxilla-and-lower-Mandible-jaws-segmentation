@@ -26,7 +26,7 @@ All the code for training and testing found under [source/](source/).
 │   │   ├── *`learner.py`* (implement the training, eval, and test functions)\
 │   │   ├── *`losses.py`* (implement multiple loss function)\
 │   │   ├── *`model.py`* (implment multiple semantic seg models, currently UNET)\
-│   │   └── *`utils.py`* (contains all the utils, reading the configs and get dataset transform functions, get model, etc.. )\
+│   │   └── *`utils.py`* (contains all the utils, reading the configs and get dataset transform functions, get model, etc.)\
 │   └── *`option.py`* (contains arguments config if you want to pass them through the terminal instead of a json file)\
 └── **view**\
     └── *`Dataset.png`*
