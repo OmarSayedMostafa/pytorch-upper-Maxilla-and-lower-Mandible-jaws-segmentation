@@ -15,6 +15,7 @@ All the code for training and testing found under [source/](source/).
 ├── *`Download_jaw_segmentation_DS.ipynb`* (Download and explore the dataset)\
 ├── *`LICENSE`*\
 ├── *`README.md`*\
+├── *`requirements.txt`*\
 ├── **source**\
 │   ├── *`baseline.py`* (entry for a single experiment run)\
 │   ├── *`experiment_handler.py`* (load multiple experiments configs from [experiments.json](source/experiments.json))\
