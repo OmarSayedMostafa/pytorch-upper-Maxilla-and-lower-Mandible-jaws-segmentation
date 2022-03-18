@@ -8,6 +8,10 @@ pytorch segmentation for  upper (Maxilla) and lower(Mandible) jaws in a DICOM fi
 [Download_jaw_segmentation_DS.ipynb](Download_jaw_segmentation_DS.ipynb) contains the required code for download and inspect the dataset.
 
 ---
+## Install Requirments python >= 3.8
+`python3 -m pip install -r requirements.txt`
+
+---
 ## Repo Structure
 All the code for training and testing found under [source/](source/).
 
@@ -32,3 +36,33 @@ All the code for training and testing found under [source/](source/).
 └── **view**\
     └── *`Dataset.png`*
 
+---
+
+## Training and baseline
+
+- using *`experiment.json`*
+```python
+python3 baseline.py --save_path path/to/save/exp/output --model model_name --train_size 128 128 --test_size 128 128 --crop_size --batch_size 8; # other parameters found in [options.py](source/option.py)
+```
+
+- using *`terminal`*
+    - set the configurations of the experiements in [experiments.json](source/experiments.json), there are 2 main keys, the **`general` config** which have general configurations for all experiments, and **`experiments`** which contains list of experiments config which overwrites the general config based on each experiments customizatiom.
+
+```python
+python3 source/experiment_handler.py # after set the configurations
+```
+
+---
+
+## supported losses
+
+- Cross Entropy
+- Dice Loss
+- Focal Loss
+- Travesky Loss
+
+---
+
+## supported Models
+
+- UNET
