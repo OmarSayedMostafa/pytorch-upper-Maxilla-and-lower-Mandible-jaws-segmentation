@@ -4,13 +4,14 @@ import torch.nn as nn
 from collections import OrderedDict
 
 class UNet(nn.Module):
-    def __init__(self, n_classes_input, n_classes_output, batchnorm = False):
+    def __init__(self, n_classes_input, n_classes_output, batchnorm = False, dropout_p=0.0):
         super(UNet, self).__init__()
         self.inc = inconv(n_classes_input, 64, batchnorm)
         self.down1 = down(64, 128, batchnorm)
         self.down2 = down(128, 256, batchnorm)
         self.down3 = down(256, 512, batchnorm)
         self.down4 = down(512, 512, batchnorm)
+        self.dropout = nn.Dropout2d(p=dropout_p)
         self.up1 = up(1024, 256, batchnorm)
         self.up2 = up(512, 128, batchnorm)
         self.up3 = up(256, 64, batchnorm)
@@ -23,6 +24,7 @@ class UNet(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+        # x5 = self.dropout(x5)
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)

@@ -4,18 +4,21 @@
         "save_path": "./baseline_run",
         "weights": null,
         "norm": "batch",
-        "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/axial",
+        "dataset_path": "/Path/to/dataset",
         "lbl_channels":3,
         "save_val_imgs":false,
+        "save_test_imgs":true,
         
         "pin_memory": true,
         "num_workers": 16,
         "hflip": true,
         "vflip": false,
-        "normalize":false,
+        "normalize":true,
         "rotate":true,
         "scale":true,
-        "validation_ratio":0.2,
+        
+        "validation_ratio":0.15,
+        
         "train_size": [
             128,
             128
@@ -24,15 +27,18 @@
             128,
             128
         ],
+
         "dataset_mean": 0.0,
         "dataset_std": 1.0,
         
-        "batch_size": 100000,
+        "batch_size": 256,
         
         "lr_init": 0.01,
         "lr_momentum": 0.9,
         "lr_weight_decay": 0.0001,
-        "epochs": 1,
+        
+        "epochs": 20,
+        
         "seed": true,
         "random_seed":40,
         "loss": "ce",
@@ -41,29 +47,26 @@
     },
     "eperiments":[
         {
-            "experiment_name":"sagittal_experiment",
-            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/sagittal",
-            "batch_size": 128,
-            "epochs":5,
-            "save_val_imgs":false
-
+            "experiment_name":"ce_sagittal_experiment",
+            "normalize":true,
+            "dataset_mean":-468.61935424804695,
+            "dataset_std": 462.7294921875,
+            "loss":"ce"
         },
         {
-            "experiment_name":"coronal_experiment",
-            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/coronal",
-            "batch_size": 128,
-            "epochs":5,
-            "save_val_imgs":false
-
+            "experiment_name":"ce_coronal_experiment",
+            "normalize":true,
+            "dataset_mean":-382.0973205566406,
+            "dataset_std":538.0035400390625,
+            "loss":"ce"
         },
         {
-            "experiment_name":"axial_experiment",
-            "dataset_path": "/home/silverbulletcv/omarsayed/pytorch-upper-Maxilla-and-lower-Mandible-jaws-segmentation/dataset/axial",
-            "batch_size": 128,
-            "epochs":5,
-            "save_val_imgs":false
-
+            "experiment_name":"ce_axial_experiment",
+            "normalize":true,
+            "dataset_mean":-601.2962646484375,
+            "dataset_std": 335.1224670410156,
+            "loss":"ce"
         }
-
+        
     ]
 }

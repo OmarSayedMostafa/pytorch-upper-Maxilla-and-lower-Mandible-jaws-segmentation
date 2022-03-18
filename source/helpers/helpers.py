@@ -163,7 +163,7 @@ class iouCalc():
         classScoreList = []
             
         # Print class IOU scores
-        outStr = 'classes           IoU\n'
+        outStr = mode+':classes      IoU\n'
         outStr += '---------------------\n'
         for c in self.evalClasses:
             iouScore = self.getIouScoreForLabel(c)
@@ -208,8 +208,8 @@ def visim(img, args):
     img = img.cpu()
     # Convert image data to visual representation
     if args.normalize:
-        img *= torch.tensor(args.dataset_std)[:,None,None]
-        img += torch.tensor(args.dataset_mean)[:,None,None]
+        img *= torch.tensor(args.dataset_std)
+        img += torch.tensor(args.dataset_mean)
     npimg = img.numpy()
     if len(npimg.shape) == 3 and npimg.shape[0] == 3:
         npimg = np.transpose(npimg, (1, 2, 0))

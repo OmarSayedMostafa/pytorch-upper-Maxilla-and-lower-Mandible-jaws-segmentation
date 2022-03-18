@@ -12,7 +12,7 @@ Routine functions
 =================
 """
 
-def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, void=-1, args=None):
+def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, classLabels, validClasses, void=-1, args=None):
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     loss_running = AverageMeter('Loss', ':.4e')
@@ -21,7 +21,8 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
         len(dataloader),
         [batch_time, data_time, loss_running, acc_running],
         prefix="Train, epoch: [{}]".format(epoch))
-    
+    iou = iouCalc(classLabels, validClasses, voidClass = void)
+
     # input resolution
     res = args.train_size[0]*args.train_size[1]
     
@@ -60,6 +61,7 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             nvoid = int((labels==void).sum())
             acc = corrects.double()/(bs*res-nvoid) # correct/(batch_size*resolution-voids)
             acc_running.update(acc, bs)
+            iou.evaluateBatch(preds, labels)
             
             # output training info
             progress.display(epoch_step)
@@ -69,8 +71,10 @@ def train_epoch(dataloader, model, criterion, optimizer, lr_scheduler, epoch, vo
             end = time.time()
 
         # Reduce learning rate
-        lr_scheduler.step(loss_running.avg)
-        
+        lr_scheduler.step(epoch)
+
+    iou.outputScores(mode='train', args=args)
+
     return loss_running.avg, acc_running.avg
 
     
@@ -116,7 +120,7 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
             iou.evaluateBatch(preds, labels)
             
             # Save visualizations of first batch
-            if args.save_val_imgs and maskColors is not None:
+            if args.__dict__["save_"+mode+"_imgs"] and maskColors is not None:
                 for i in range(inputs.size(0)):
                     filename = (epoch_step*inputs.size(0))+i
                     # Only save inputs and labels once
@@ -124,9 +128,13 @@ def validate_epoch(dataloader, model, criterion, epoch, classLabels, validClasse
                         img = visim(inputs[i,:,:,:], args)
                         label = vislbl(labels[i,:,:], maskColors)
                         if len(img.shape) == 3:
-                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode, filename),img[:,:,::-1])
-                        else: 
-                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode,filename),img)
+                            min = img[:,:,::-1].min()
+                            max = img[:,:,::-1].max()
+                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode, filename),((img[:,:,::-1]-min)/(max-min))*255.0)
+                        else:
+                            min = img.min()
+                            max = img.max()
+                            cv2.imwrite(folder + '/images/{}/{}.png'.format(mode,filename),((img-min)/(max-min))*255.0)
                         cv2.imwrite(folder + '/images/{}/{}_gt.png'.format(mode,filename),label[:,:,::-1])
                     # Save predictions
                     pred = vislbl(preds[i,:,:], maskColors)

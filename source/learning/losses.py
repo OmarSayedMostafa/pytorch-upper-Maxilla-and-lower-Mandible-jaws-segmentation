@@ -1,25 +1,33 @@
+from __future__ import print_function, division
+from black import out
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+
+
+import torch
+from torch.autograd import Variable
+import torch.nn.functional as F
+import numpy as np
+try:
+    from itertools import  ifilterfalse
+except ImportError: # py3k
+    from itertools import  filterfalse as ifilterfalse
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn.functional as F
 from sklearn.utils import class_weight 
-from utils.lovasz_losses import lovasz_softmax
 
-def make_one_hot(labels, classes):
-    one_hot = torch.FloatTensor(labels.size()[0], classes, labels.size()[2], labels.size()[3]).zero_().to(labels.device)
-    target = one_hot.scatter_(1, labels.data, 1)
-    return target
 
-def get_weights(target):
-    t_np = target.view(-1).data.cpu().numpy()
-
-    classes, counts = np.unique(t_np, return_counts=True)
-    cls_w = np.median(counts) / counts
-    #cls_w = class_weight.compute_class_weight('balanced', classes, t_np)
-
-    weights = np.ones(7)
-    weights[classes] = cls_w
-    return torch.from_numpy(weights).float().cuda()
+class StableBCELoss(torch.nn.modules.Module):
+    def __init__(self):
+         super(StableBCELoss, self).__init__()
+    def forward(self, input, target):
+         neg_abs = - input.abs()
+         loss = input.clamp(min=0) - input * target + (1 + neg_abs.exp()).log()
+         return loss.mean()
 
 class CrossEntropyLoss2d(nn.Module):
     def __init__(self, weight=None, ignore_index=255, reduction='mean'):
@@ -31,13 +39,13 @@ class CrossEntropyLoss2d(nn.Module):
         return loss
 
 class DiceLoss(nn.Module):
-    def __init__(self, smooth=1., ignore_index=255):
+    def __init__(self, smooth=1., ignore_index=None):
         super(DiceLoss, self).__init__()
         self.ignore_index = ignore_index
         self.smooth = smooth
 
     def forward(self, output, target):
-        if self.ignore_index not in range(target.min(), target.max()):
+        if self.ignore_index is not None and self.ignore_index not in range(target.min(), target.max()):
             if (target == self.ignore_index).sum() > 0:
                 target[target == self.ignore_index] = target.min()
         target = make_one_hot(target.unsqueeze(dim=1), classes=output.size()[1])
@@ -50,11 +58,11 @@ class DiceLoss(nn.Module):
         return loss
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma=2, alpha=None, ignore_index=255, size_average=True):
+    def __init__(self, gamma=2, alpha=None, size_average=True):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.size_average = size_average
-        self.CE_loss = nn.CrossEntropyLoss(reduce=False, ignore_index=ignore_index, weight=alpha)
+        self.CE_loss = nn.CrossEntropyLoss(reduce=False, weight=alpha)
 
     def forward(self, output, target):
         logpt = self.CE_loss(output, target)
@@ -64,12 +72,56 @@ class FocalLoss(nn.Module):
             return loss.mean()
         return loss.sum()
 
+"""
+====================
+Focal Loss
+code reference: https://github.com/clcarwin/focal_loss_pytorch
+====================
+"""
+
+# class FocalLoss(nn.Module):
+#     def __init__(self, gamma=0, alpha=None, size_average=True):
+#         super(FocalLoss, self).__init__()
+#         self.gamma = gamma
+#         self.alpha = alpha
+#         if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
+#         if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
+#         self.size_average = size_average
+
+#     def forward(self, input, target):
+#         if input.dim()>2:
+#             input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
+#             input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
+#             input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
+#         target = target.view(-1,1)
+
+#         logpt = F.log_softmax(input)
+#         logpt = logpt.gather(1,target)
+#         logpt = logpt.view(-1)
+#         pt = Variable(logpt.data.exp())
+
+#         if self.alpha is not None:
+#             if self.alpha.type()!=input.data.type():
+#                 self.alpha = self.alpha.type_as(input.data)
+#             at = self.alpha.gather(0,target.data.view(-1))
+#             logpt = logpt * Variable(at)
+
+#         loss = -1 * (1-pt)**self.gamma * logpt
+#         if self.size_average: return loss.mean()
+#         else: return loss.sum()
+
+
+
 class CE_DiceLoss(nn.Module):
-    def __init__(self, smooth=1, reduction='mean', ignore_index=255, weight=None):
+    def __init__(self, smooth=1, reduction='mean', ignore_index=None, weight=None):
         super(CE_DiceLoss, self).__init__()
         self.smooth = smooth
         self.dice = DiceLoss()
-        self.cross_entropy = nn.CrossEntropyLoss(weight=weight, reduction=reduction, ignore_index=ignore_index)
+        if ignore_index is not None:
+            self.cross_entropy = nn.CrossEntropyLoss(weight=weight, reduction=reduction, ignore_index=ignore_index)
+        else:
+            self.cross_entropy = nn.CrossEntropyLoss(weight=weight, reduction=reduction)
+
     
     def forward(self, output, target):
         CE_loss = self.cross_entropy(output, target)
@@ -77,7 +129,7 @@ class CE_DiceLoss(nn.Module):
         return CE_loss + dice_loss
 
 class LovaszSoftmax(nn.Module):
-    def __init__(self, classes='present', per_image=False, ignore_index=255):
+    def __init__(self, classes='all', per_image=True, ignore_index=None):
         super(LovaszSoftmax, self).__init__()
         self.smooth = classes
         self.per_image = per_image
@@ -103,16 +155,7 @@ Maxim Berman 2018 ESAT-PSI KU Leuven (MIT License)
 https://github.com/bermanmaxim/LovaszSoftmax/blob/master/pytorch/lovasz_losses.py
 """
 
-from __future__ import print_function, division
 
-import torch
-from torch.autograd import Variable
-import torch.nn.functional as F
-import numpy as np
-try:
-    from itertools import  ifilterfalse
-except ImportError: # py3k
-    from itertools import  filterfalse as ifilterfalse
 
 
 def lovasz_grad(gt_sorted):
@@ -225,15 +268,6 @@ def flatten_binary_scores(scores, labels, ignore=None):
     return vscores, vlabels
 
 
-class StableBCELoss(torch.nn.modules.Module):
-    def __init__(self):
-         super(StableBCELoss, self).__init__()
-    def forward(self, input, target):
-         neg_abs = - input.abs()
-         loss = input.clamp(min=0) - input * target + (1 + neg_abs.exp()).log()
-         return loss.mean()
-
-
 def binary_xloss(logits, labels, ignore=None):
     """
     Binary Cross entropy loss
@@ -265,6 +299,7 @@ def lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=No
     else:
         loss = lovasz_softmax_flat(*flatten_probas(probas, labels, ignore), classes=classes)
     return loss
+
 
 
 def lovasz_softmax_flat(probas, labels, classes='present'):
@@ -349,12 +384,6 @@ def mean(l, ignore_nan=False, empty=0):
     return acc / n
 
 
-
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-import torch.nn.functional as F
-
 ### data processing ###
 
 def toOneHot(mask, nb_class=10):
@@ -369,41 +398,7 @@ def toOneHot(mask, nb_class=10):
 
     return categorical.permute(2,0,1).float()
 
-### plots ###
 
-def show_learning(model):
-    """
-    Plot loss and accuracy from model
-    
-    Args:
-        model: Unet model
-    """
-    fig, axes = plt.subplots(1, 2, figsize=(15,5))
-
-    # plot losses
-    axes[0].plot(model.train_loss, label="train")
-    axes[0].plot(model.valid_loss, label="validation")
-    axes[0].set_xlabel("Epochs")
-
-    try:
-        axes[0].set_ylabel(model.criterion._get_name())
-    except:
-        axes[0].set_ylabel("Loss")
-        
-    axes[0].set_title("Loss evolution")
-    axes[0].legend()
-
-    # plot accuracy
-    axes[1].plot(model.train_accuracy, label="train")
-    axes[1].plot(model.valid_accuracy, label="validation")
-    axes[1].set_xlabel("Epochs")
-    axes[1].set_ylabel("IOU score")
-    axes[1].set_title("Accuracy evolution")
-
-    axes[1].legend()
-    
-    plt.show()
-    
 ### losses & accuracy ###
 
 def dice_loss(yhat, ytrue, epsilon=1e-6):
@@ -435,9 +430,9 @@ def tversky_index(yhat, ytrue, alpha=0.3, beta=0.7, epsilon=1e-6):
     output:
         tversky index value
     """
-    TP = torch.sum(yhat * ytrue, (1,2,3))
-    FP = torch.sum((1. - ytrue) * yhat, (1,2,3))
-    FN = torch.sum((1. - yhat) * ytrue, (1,2,3))
+    TP = torch.sum(yhat * ytrue)
+    FP = torch.sum((1. - ytrue) * yhat)
+    FN = torch.sum((1. - yhat) * ytrue)
     
     return TP/(TP + alpha * FP + beta * FN + epsilon)
 
@@ -451,6 +446,7 @@ def tversky_loss(yhat, ytrue):
         tversky loss value with `mean` reduction
     """
     return torch.mean(1 - tversky_index(yhat, ytrue))
+
 
 def tversky_focal_loss(yhat, ytrue, alpha=0.7, beta=0.3, gamma=0.75):
     """
@@ -504,3 +500,20 @@ def iou_accuracy(yhat, ytrue, threshold=0.5, epsilon=1e-6):
     union = ((yhat>threshold).long() | ytrue.long()).float().sum((1,2,3))
 
     return torch.mean(intersection/(union + epsilon)).item()
+
+
+def make_one_hot(labels, classes):
+    one_hot = torch.FloatTensor(labels.size()[0], classes, labels.size()[2], labels.size()[3]).zero_().to(labels.device)
+    target = one_hot.scatter_(1, labels.data, 1)
+    return target
+
+def get_weights(target):
+    t_np = target.view(-1).data.cpu().numpy()
+
+    classes, counts = np.unique(t_np, return_counts=True)
+    # cls_w = np.median(counts) / counts
+    cls_w = class_weight.compute_class_weight(class_weight='balanced', classes=classes, y=t_np)
+
+    weights = np.ones(7)
+    weights[classes] = cls_w
+    return torch.from_numpy(weights).float().cuda()

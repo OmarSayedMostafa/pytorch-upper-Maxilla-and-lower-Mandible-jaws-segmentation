@@ -26,6 +26,19 @@ def get_args():
                         type=float, help='data augmentation: random horizontal flip')
     parser.add_argument('--vflip', metavar='[True,False]', default=True,
                         type=float, help='data augmentation: random virtical flip')
+    
+    parser.add_argument('--scale', metavar='[True,False]', default=True,
+                        type=float, help='data augmentation: random scale')
+
+    parser.add_argument('--rotate', metavar='[True,False]', default=True,
+                        type=float, help='data augmentation: random rotate')
+                    
+
+    parser.add_argument('--save_test_imgs', metavar='[True,False]', default=True,
+                        type=float, help='save test prediction images')
+
+    parser.add_argument('--save_val_imgs', metavar='[True,False]', default=True,
+                        type=float, help='save val prediction images of last epoch')
 
     parser.add_argument('--train_size', default=[128, 128], nargs='+', type=int, help='image size during training')
     parser.add_argument('--test_size', default=[128, 128], nargs='+', type=int, help='image size during test')

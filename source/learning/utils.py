@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from learning.model import convert_bn_to_instancenorm, convert_bn_to_evonorm, convert_bn_to_groupnorm, DeepLabHead, UNet
-
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from tqdm import tqdm
@@ -16,6 +15,9 @@ import json
 import glob
 import os
 import random
+from learning.losses import FocalLoss, DiceLoss, CE_DiceLoss, LovaszSoftmax
+
+
 
 def load_jsonL_file(json_file_path):
     '''
@@ -92,16 +94,19 @@ def get_dataloader(dataset, args, as_one_batch=False):
     def test_trans(image, mask=None):
         # Resize, 1 for Image.LANCZOS
         image = TF.resize(image, args.test_size, interpolation=1) 
+
+        # From PIL to Tensor
+        image = TF.to_tensor(image)
+        
         # Normalize
         if args.normalize:
             image = TF.normalize(image, args.dataset_mean, args.dataset_std)
         
-        # From PIL to Tensor
-        image = TF.to_tensor(image)
-        
         if mask:
             # Resize, 0 for Image.NEAREST
             mask = TF.resize(mask, args.test_size, interpolation=0) 
+
+            # convert 2d label to 3d label n channel classes
             mask = np.array(mask, np.uint8) # PIL Image to numpy array
             mask = torch.from_numpy(mask) # Numpy array to tensor
             return image, mask
@@ -120,7 +125,7 @@ def get_dataloader(dataset, args, as_one_batch=False):
 
         if pscale and args.scale:
             # Random scaling
-            scale_factor = np.random.uniform(0.5, 1.5)
+            scale_factor = np.random.uniform(0.75, 1.25)
             scaled_train_size = [int(element * scale_factor) for element in args.train_size]
             # Resize, 1 for Image.LANCZOS
             image = TF.resize(image, scaled_train_size, interpolation=1)
@@ -139,51 +144,59 @@ def get_dataloader(dataset, args, as_one_batch=False):
             mask = TF.vflip(mask)
         
         if protate and args.rotate:
-            rotate_angle = np.random.randint(10, 45)
+            rotate_angle = np.random.randint(0, 45)
             image = TF.rotate(image, angle=rotate_angle, center=image.size()//2, interpolation=1)
             mask = TF.rotate(mask, angle=rotate_angle, center=image.size()//2, interpolation=0)
+        
+        # From PIL to Tensor
+        image = TF.to_tensor(image)
         
         # Normalize
         if args.normalize:
             image = TF.normalize(image, args.dataset_mean, args.dataset_std)
         
-        # From PIL to Tensor
-        image = TF.to_tensor(image)
-        
-        # Convert ids to train_ids
+        # convert 2d label to 3d label n channel classes
         mask = np.array(mask, np.uint8) # PIL Image to numpy array
 
-        n_channel_mask = np.zeros(shape=(mask.shape[0], mask.shape[1], args.lbl_channels), dtype=np.uint)
-        n_channel_mask[np.where(mask==1)]=[0,1,0]
-        n_channel_mask[np.where(mask==2)]=[0,0,2]
-
         mask = torch.from_numpy(mask) # Numpy array to tensor
-
             
         return image, mask
 
     if as_one_batch:
         args.validation_ratio=0
 
-    train_data = {
-        case: glob.glob(os.path.join(args.dataset_path, "train", case,"*.dicom.npy.gz"))
-        for case in os.listdir(os.path.join(args.dataset_path, "train"))
-    }
     test_data = glob.glob(os.path.join(args.dataset_path, "test/**/*.dicom.npy.gz"))
 
-    validation_data = {}
-    # sample from all cases
-    for case in train_data:
-        random.shuffle(train_data[case])
-        assert len(train_data[case]) > 0
-        validation_files_count = math.ceil(len(train_data[case]) * args.validation_ratio)
-        validation_data[case] = train_data[case][:validation_files_count]
-        train_data[case] = train_data[case][validation_files_count:]
+    if args.dtype == 'splits':
+        train_data = glob.glob(os.path.join(args.dataset_path, "train/**/*.dicom.npy.gz"))
+        validation_data = glob.glob(os.path.join(args.dataset_path, "val/**/*.dicom.npy.gz"))
     
-    train_data = merge_lists(train_data)
-    validation_data = merge_lists(validation_data)
+    elif args.dtype == 'random':
+        train_data = glob.glob(os.path.join(args.dataset_path, "train", "**","*.dicom.npy.gz"))
+        random.shuffle(train_data)
+        assert len(train_data) > 0
+        validation_files_count = math.ceil(len(train_data) * args.validation_ratio)
+        validation_data = train_data[:validation_files_count]
+        train_data = train_data[validation_files_count:]
+    
+    elif args.dtype == 'stratified':
+        train_data = {
+            case: glob.glob(os.path.join(args.dataset_path, "train", case,"*.dicom.npy.gz"))
+            for case in os.listdir(os.path.join(args.dataset_path, "train"))
+        }
+        validation_data = {}
+        # sample from all cases
+        for case in train_data:
+            random.shuffle(train_data[case])
+            assert len(train_data[case]) > 0
+            validation_files_count = math.ceil(len(train_data[case]) * args.validation_ratio)
+            validation_data[case] = train_data[case][:validation_files_count]
+            train_data[case] = train_data[case][validation_files_count:]
+        
+        train_data = merge_lists(train_data)
+        validation_data = merge_lists(validation_data)
 
-    print(f"[INFO] found {len(train_data)} training examples, {len(validation_data)} validation example, {len(test_data)} test example")
+    print(f"[INFO] found {len(train_data)} training examples, {len(validation_data)} validation example, {len(test_data)} test example @", args.dataset_path)
 
     trainset = dataset(train_data, transforms=train_trans)
     valset = dataset(validation_data, transforms=test_trans)
@@ -205,44 +218,6 @@ def get_dataloader(dataset, args, as_one_batch=False):
 
     return dataloaders
 
-"""
-====================
-Focal Loss
-code reference: https://github.com/clcarwin/focal_loss_pytorch
-====================
-"""
-
-class FocalLoss(nn.Module):
-    def __init__(self, gamma=0, alpha=None, size_average=True):
-        super(FocalLoss, self).__init__()
-        self.gamma = gamma
-        self.alpha = alpha
-        if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
-        if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
-        self.size_average = size_average
-
-    def forward(self, input, target):
-        if input.dim()>2:
-            input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
-            input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
-            input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
-        target = target.view(-1,1)
-
-        logpt = F.log_softmax(input)
-        logpt = logpt.gather(1,target)
-        logpt = logpt.view(-1)
-        pt = Variable(logpt.data.exp())
-
-        if self.alpha is not None:
-            if self.alpha.type()!=input.data.type():
-                self.alpha = self.alpha.type_as(input.data)
-            at = self.alpha.gather(0,target.data.view(-1))
-            logpt = logpt * Variable(at)
-
-        loss = -1 * (1-pt)**self.gamma * logpt
-        if self.size_average: return loss.mean()
-        else: return loss.sum()
-
 
 """
 ====================
@@ -259,12 +234,26 @@ def get_lossfunc(dataset, args):
             criterion = nn.CrossEntropyLoss()
     elif args.loss == 'weighted_ce':
         # Class-Weighted loss
-        class_weight = [0.8373, 0.918, 0.866, 1.0345, 1.0166, 0.9969, 0.9754, 1.0489, 0.8786, 1.0023, 0.9539, 0.9843, 1.1116, 0.9037, 1.0865, 1.0955, 1.0865, 1.1529, 1.0507]
-        class_weight.append(0) #for void-class
+        class_weight = args.class_weights
         class_weight = torch.FloatTensor(class_weight).cuda()
-        criterion = nn.CrossEntropyLoss(weight=class_weight, ignore_index=dataset.voidClass)
+        criterion = nn.CrossEntropyLoss(weight=class_weight)
+    elif args.loss =='diceloss':
+        criterion = DiceLoss()
+    elif args.loss =='ce_diceloss':
+        criterion = CE_DiceLoss()
+    elif args.loss =='weighted_ce_diceloss':
+        class_weight = args.class_weights
+        class_weight = torch.FloatTensor(class_weight).cuda()
+        criterion = CE_DiceLoss(weight=class_weight)
     elif args.loss =='focal':
-        criterion = FocalLoss(gamma=args.focal_gamma)
+        class_weight = args.class_weights
+        class_weight = torch.FloatTensor(class_weight).cuda()
+        criterion = FocalLoss(gamma=args.focal_gamma,alpha=class_weight) 
+    elif args.loss == 'tversky_loss':
+        class_weight = args.class_weights
+        class_weight = torch.FloatTensor(class_weight).cuda()
+        criterion = LovaszSoftmax()
+    
     else:
         raise NameError('Loss is not defined!')
 
@@ -280,7 +269,7 @@ Model Architecture
 def get_model(dataset, args):
     if args.model == 'UNet':
         """ U-Net baeline """
-        model = UNet(1, len(dataset.validClasses), batchnorm=True)
+        model = UNet(1, len(dataset.validClasses), batchnorm=True, dropout_p=args.dropout_p)
     elif args.model == 'DeepLabv3_resnet50':
         """ DeepLab v3 ResNet50 """
         model = torchvision.models.segmentation.deeplabv3_resnet50(pretrained=False)
@@ -305,63 +294,3 @@ def get_model(dataset, args):
         raise NameError('Normalization is not defined!')
 
     return model
-
-"""
-====================
-random bbox function for cutmix
-====================
-"""
-
-def rand_bbox(size, lam):
-    W = size[2]
-    H = size[3]
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
-
-    # uniform
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2
-
-"""
-====================
-Custom copyblob function for copyblob data augmentation
-====================
-"""
-
-def copyblob(src_img, src_mask, dst_img, dst_mask, src_class, dst_class):
-    mask_hist_src, _ = np.histogram(src_mask.numpy().ravel(), len(MiniCity.validClasses)-1, [0, len(MiniCity.validClasses)-1])
-    mask_hist_dst, _ = np.histogram(dst_mask.numpy().ravel(), len(MiniCity.validClasses)-1, [0, len(MiniCity.validClasses)-1])
-
-    if mask_hist_src[src_class] != 0 and mask_hist_dst[dst_class] != 0:
-        """ copy src blob and paste to any dst blob"""
-        mask_y, mask_x = src_mask.size()
-        """ get src object's min index"""
-        src_idx = np.where(src_mask==src_class)
-        
-        src_idx_sum = list(src_idx[0][i] + src_idx[1][i] for i in range(len(src_idx[0])))
-        src_idx_sum_min_idx = np.argmin(src_idx_sum)        
-        src_idx_min = src_idx[0][src_idx_sum_min_idx], src_idx[1][src_idx_sum_min_idx]
-        
-        """ get dst object's random index"""
-        dst_idx = np.where(dst_mask==dst_class)
-        rand_idx = np.random.randint(len(dst_idx[0]))
-        target_pos = dst_idx[0][rand_idx], dst_idx[1][rand_idx] 
-        
-        src_dst_offset = tuple(map(lambda x, y: x - y, src_idx_min, target_pos))
-        dst_idx = tuple(map(lambda x, y: x - y, src_idx, src_dst_offset))
-        
-        for i in range(len(dst_idx[0])):
-            dst_idx[0][i] = (min(dst_idx[0][i], mask_y-1))
-        for i in range(len(dst_idx[1])):
-            dst_idx[1][i] = (min(dst_idx[1][i], mask_x-1))
-        
-        dst_mask[dst_idx] = src_class
-        dst_img[:, dst_idx[0], dst_idx[1]] = src_img[:, src_idx[0], src_idx[1]]

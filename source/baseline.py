@@ -48,9 +48,10 @@ def main(args):
     criterion = get_lossfunc(Dataset, args)
     model = get_model(Dataset, args)
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr_init, momentum=args.lr_momentum, weight_decay=args.lr_weight_decay)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr_init, momentum=args.lr_momentum, weight_decay=args.lr_weight_decay)
+    optimizer = torch.optim.Adam(model.parameters(),lr=args.lr_init,  weight_decay=args.lr_weight_decay)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    
+    # scheduler = optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=int(args.schedule_steps), gamma=0.5)
     # Initialize metrics
     best_miou = 0.0
     metrics = {'train_loss' : [],
@@ -60,6 +61,11 @@ def main(args):
                'miou' : []}
     start_epoch = 0
     
+    # Push model to GPU
+    if torch.cuda.is_available():
+        model = torch.nn.DataParallel(model).cuda()
+        print('Model pushed to {} GPU(s), type {}.'.format(torch.cuda.device_count(), torch.cuda.get_device_name(0)))
+        
     # Resume training from checkpoint
     if args.weights:
         print('Resuming training from {}.'.format(args.weights))
@@ -70,10 +76,7 @@ def main(args):
         best_miou = checkpoint['best_miou']
         start_epoch = checkpoint['epoch']+1
     
-    # Push model to GPU
-    if torch.cuda.is_available():
-        model = torch.nn.DataParallel(model).cuda()
-        print('Model pushed to {} GPU(s), type {}.'.format(torch.cuda.device_count(), torch.cuda.get_device_name(0)))
+    
 
     # No training, only running prediction on test set
     if args.predict:
@@ -99,14 +102,14 @@ def main(args):
     
     for epoch in range(start_epoch, args.epochs):
         # Train
-        print('--- Training ---')
-        train_loss, train_acc = train_epoch(dataloaders['train'], model, criterion, optimizer, scheduler, epoch, void=Dataset.voidClass, args=args)
+        print('--- Training ---\n', args.dataset_path)
+        train_loss, train_acc = train_epoch(dataloaders['train'], model, criterion, optimizer, scheduler, epoch,Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass, args=args)
         metrics['train_loss'].append(train_loss)
         metrics['train_acc'].append(train_acc)
         print('Epoch {} train loss: {:.4f}, acc: {:.4f}'.format(epoch,train_loss,train_acc))
         
         # Validate
-        print('--- Validation ---')
+        print('--- Validation ---\n', args.dataset_path)
         val_acc, val_loss, miou = validate_epoch(dataloaders['val'], model, criterion, epoch,
                                                  Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass,
                                                  maskColors=Dataset.mask_colors, folder=args.save_path, args=args, mode='val')
@@ -155,6 +158,7 @@ def main(args):
     if not os.path.isdir(args.save_path + '/images/test'):
         os.makedirs(args.save_path + '/images/test')
 
+    print('--- Test ---\n', args.dataset_path)
     # Run prediction on validation set. For predicting on test set, simple replace 'val' by 'test'
     val_acc, val_loss, miou = validate_epoch(dataloaders['test'], model, criterion, 0,
                                                  Dataset.classLabels, Dataset.validClasses, void=Dataset.voidClass,
