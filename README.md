@@ -42,7 +42,7 @@ All the code for training and testing found under [source/](source/).
 
 ---
 
-## Training and baseline
+## Training and Baseline
 
 - using *`experiment.json`*
 ```python
