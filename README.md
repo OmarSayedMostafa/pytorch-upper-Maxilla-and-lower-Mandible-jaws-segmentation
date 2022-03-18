@@ -58,7 +58,7 @@ python3 source/experiment_handler.py # after set the configurations
 
 ---
 
-## supported losses
+## Supported Losses
 
 - Cross Entropy
 - Dice Loss
@@ -67,7 +67,7 @@ python3 source/experiment_handler.py # after set the configurations
 
 ---
 
-## supported Models
+## Supported Models
 
 - UNET
 
