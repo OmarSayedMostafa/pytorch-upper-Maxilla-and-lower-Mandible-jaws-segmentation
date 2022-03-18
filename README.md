@@ -73,7 +73,7 @@ python3 source/experiment_handler.py # after set the configurations
 
 ---
 
-## 4. Reference
+## Reference
 - [Focal Loss](https://github.com/clcarwin/focal_loss_pytorch)
 - [Class Weighted CE Loss](https://github.com/openseg-group/OCNet.pytorch/blob/master/utils/loss.py)
 - [EvoNorm](https://github.com/digantamisra98/EvoNorm)
