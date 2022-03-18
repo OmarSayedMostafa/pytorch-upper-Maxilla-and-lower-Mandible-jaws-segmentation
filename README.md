@@ -3,6 +3,10 @@ pytorch segmentation for  upper (Maxilla) and lower(Mandible) jaws in a DICOM fi
 
 ![Dataset](view/Dataset.png)
 
+## Test predictions Sample
+
+![TestSet Prediction Sample](view/results.png)
+
 ---
 ## Download open source dataset and explore it!
 [Download_jaw_segmentation_DS.ipynb](Download_jaw_segmentation_DS.ipynb) contains the required code for download and inspect the dataset.
