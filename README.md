@@ -66,3 +66,11 @@ python3 source/experiment_handler.py # after set the configurations
 ## supported Models
 
 - UNET
+
+---
+
+## 4. Reference
+- [Focal Loss](https://github.com/clcarwin/focal_loss_pytorch)
+- [Class Weighted CE Loss](https://github.com/openseg-group/OCNet.pytorch/blob/master/utils/loss.py)
+- [EvoNorm](https://github.com/digantamisra98/EvoNorm)
+- [StarterCode-@hoya012](https://github.com/hoya012/semantic-segmentation-tutorial-pytorch)
